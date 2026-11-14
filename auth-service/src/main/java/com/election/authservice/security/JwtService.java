@@ -1,9 +1,11 @@
 package com.election.authservice.security;
 
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.util.Date;
 
+import javax.crypto.SecretKey;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.election.authservice.entity.User;
@@ -15,13 +17,16 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtService {
 
-    private static final String SECRET_KEY =
-            "MySuperSecretElectionSystemKeyForJWT2026Secure123456789";
+    private final SecretKey key;
 
-    private final Key key =
-            Keys.hmacShaKeyFor(
-                    SECRET_KEY.getBytes(StandardCharsets.UTF_8)
-            );
+    public JwtService(@Value("${JWT_SECRET}") String secret) {
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
+            throw new IllegalArgumentException(
+                    "JWT_SECRET must contain at least 256 bits (32 UTF-8 bytes)");
+        }
+        this.key = Keys.hmacShaKeyFor(secretBytes);
+    }
 
     public String generateToken(User user) {
 
@@ -43,7 +48,7 @@ public class JwtService {
     public String extractUsername(String token) {
 
         Claims claims = Jwts.parser()
-                .verifyWith((javax.crypto.SecretKey) key)
+                .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
