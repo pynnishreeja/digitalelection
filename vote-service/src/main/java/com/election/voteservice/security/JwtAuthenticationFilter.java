@@ -1,9 +1,10 @@
 package com.election.voteservice.security;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -24,66 +25,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(
-            HttpServletRequest request) {
-
-        String path = request.getServletPath();
-
-        return path.equals("/api/votes/results");
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getServletPath().equals("/api/votes/results")
+                || request.getServletPath().equals("/api/votes/test");
     }
 
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain)
-            throws ServletException, IOException {
+            FilterChain filterChain) throws ServletException, IOException {
 
-        String authorizationHeader =
-                request.getHeader("Authorization");
+        String authorizationHeader = request.getHeader("Authorization");
 
-        if (authorizationHeader == null ||
-                !authorizationHeader.startsWith("Bearer ")) {
-
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token =
-                authorizationHeader.substring(7);
+        String token = authorizationHeader.substring(7);
 
         try {
-
             if (jwtService.isTokenValid(token)) {
+                Long userId = jwtService.extractUserId(token);
+                String role = jwtService.extractRole(token);
 
-                Long userId =
-                        jwtService.extractUserId(token);
-
-                String role =
-                        jwtService.extractRole(token);
-
-                if (userId != null) {
-
+                if (userId != null && ("ADMIN".equals(role) || "VOTER".equals(role))
+                        && SecurityContextHolder.getContext().getAuthentication() == null) {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     userId.toString(),
                                     null,
-                                    Collections.emptyList()
-                            );
+                                    List.of(new SimpleGrantedAuthority("ROLE_" + role)));
 
                     authentication.setDetails(
-                            new WebAuthenticationDetailsSource()
-                                    .buildDetails(request)
-                    );
-
-                    SecurityContextHolder
-                            .getContext()
-                            .setAuthentication(authentication);
+                            new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }
-
-        } catch (Exception e) {
-            // Invalid or expired token.
+        } catch (Exception ex) {
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);

@@ -20,6 +20,14 @@ public class SecurityConfig {
     }
 
     @Bean
+    public org.springframework.boot.web.servlet.FilterRegistrationBean<JwtAuthenticationFilter>
+            jwtFilterRegistration(JwtAuthenticationFilter filter) {
+        var registration = new org.springframework.boot.web.servlet.FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http) throws Exception {
 
@@ -36,6 +44,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
 
+             .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                (request, response, exception) -> response.sendError(401)))
             .addFilterBefore(
                 jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class
